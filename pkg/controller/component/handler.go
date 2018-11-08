@@ -24,6 +24,9 @@ import (
 	"github.com/snowdrop/component-operator/pkg/stub/pipeline/innerloop"
 	"github.com/snowdrop/component-operator/pkg/stub/pipeline/link"
 	"github.com/snowdrop/component-operator/pkg/stub/pipeline/servicecatalog"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -39,6 +42,25 @@ import (
 func Add(mgr manager.Manager) error {
 	return add(mgr, newReconciler(mgr))
 }
+
+// add adds a new Controller to mgr with r as the reconcile.Reconciler
+func add(mgr manager.Manager, r reconcile.Reconciler) error {
+	// Create a new controller
+	c, err := controller.New("component-controller", mgr, controller.Options{Reconciler: r})
+	if err != nil {
+		return err
+	}
+
+	// Watch for changes to primary resource AppService
+	err = c.Watch(&source.Kind{Type: &v1alpha1.Component{}}, &handler.EnqueueRequestForObject{})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+var _ reconcile.Reconciler = &ReconcileComponent{}
 
 // newReconciler returns a new reconcile.Reconciler
 func newReconciler(mgr manager.Manager) reconcile.Reconciler {
