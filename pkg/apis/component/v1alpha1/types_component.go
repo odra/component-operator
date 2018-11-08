@@ -143,3 +143,7 @@ const (
 	// PhaseError --
 	PhaseError Phase = "Error"
 )
+
+func init() {
+   SchemeBuilder.Register(&Component{},&ComponentList{})
+}
