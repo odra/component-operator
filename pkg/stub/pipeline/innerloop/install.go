@@ -18,10 +18,11 @@ limitations under the License.
 package innerloop
 
 import (
-	"github.com/operator-framework/operator-sdk/pkg/sdk"
-	"github.com/operator-framework/operator-sdk/pkg/k8sutil"
 	log "github.com/sirupsen/logrus"
 	"github.com/snowdrop/component-operator/pkg/apis/component/v1alpha1"
+	"golang.org/x/net/context"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
 	"github.com/snowdrop/component-operator/pkg/stub/pipeline"
 	"github.com/snowdrop/component-operator/pkg/util/kubernetes"
 	util "github.com/snowdrop/component-operator/pkg/util/template"
@@ -47,12 +48,12 @@ func (installStep) CanHandle(component *v1alpha1.Component) bool {
 	return component.Status.Phase == ""
 }
 
-func (installStep) Handle(component *v1alpha1.Component, deleted bool) error {
+func (installStep) Handle(component *v1alpha1.Component, client *client.Client) error {
 	target := component.DeepCopy()
-	return installInnerLoop(target)
+	return installInnerLoop(target, *client)
 }
 
-func installInnerLoop(component *v1alpha1.Component) error {
+func installInnerLoop(component *v1alpha1.Component, c client.Client) error {
 	// Get Current Namespace
 	namespace, err := kubernetes.GetClientCurrentNamespace("")
 	if err != nil {
@@ -83,7 +84,7 @@ func installInnerLoop(component *v1alpha1.Component) error {
 				// Append runtime's image
 				component.Spec.Images = append(component.Spec.Images, CreateTypeImage(true, "dev-runtime", "latest", image[imageKey], false))
 
-				err := createResource(tmpl, component)
+				err := createResource(tmpl, component, c)
 				if err != nil {
 					return err
 				}
@@ -94,7 +95,7 @@ func installInnerLoop(component *v1alpha1.Component) error {
 				component.Spec.Storage.Name = "m2-data"
 				component.Spec.Storage.Capacity = "1Gi"
 				component.Spec.Storage.Mode = "ReadWriteOnce"
-				err := createResource(tmpl, component)
+				err := createResource(tmpl, component, c)
 				if err != nil {
 					return err
 				}
@@ -109,7 +110,7 @@ func installInnerLoop(component *v1alpha1.Component) error {
 				// Enrich Env Vars with Default values
 				populateEnvVar(component)
 
-				err := createResource(tmpl, component)
+				err := createResource(tmpl, component, c)
 				if err != nil {
 					return err
 				}
@@ -117,7 +118,7 @@ func installInnerLoop(component *v1alpha1.Component) error {
 
 			case "innerloop/route":
 				if component.Spec.ExposeService {
-					err := createResource(tmpl, component)
+					err := createResource(tmpl, component, c)
 					if err != nil {
 						return err
 					}
@@ -128,14 +129,14 @@ func installInnerLoop(component *v1alpha1.Component) error {
 				if component.Spec.Port == 0 {
 					component.Spec.Port = 8080 // Add a default port if empty
 				}
-				err := createResource(tmpl, component)
+				err := createResource(tmpl, component, c)
 				if err != nil {
 					return err
 				}
 				log.Infof("#### Created service's port '%d'",component.Spec.Port)
 
 			default:
-				err := createResource(tmpl, component)
+				err := createResource(tmpl, component, c)
 				if err != nil {
 					return err
 				}
@@ -145,7 +146,7 @@ func installInnerLoop(component *v1alpha1.Component) error {
 	log.Infof("#### Created %s CRD's component ", component.Name)
 	component.Status.Phase = v1alpha1.PhaseDeploying
 
-	err = sdk.Update(component)
+	err = c.Update(context.TODO(),component)
 	if err != nil && !k8serrors.IsAlreadyExists(err) {
 		return err
 	}
@@ -155,14 +156,14 @@ func installInnerLoop(component *v1alpha1.Component) error {
 	return nil
 }
 
-func createResource(tmpl template.Template, component *v1alpha1.Component) error {
+func createResource(tmpl template.Template, component *v1alpha1.Component, c client.Client) error {
 	res, err := newResourceFromTemplate(tmpl, component)
 	if err != nil {
 		return err
 	}
 
 	for _, r := range res {
-		err = sdk.Create(r)
+		err = c.Create(context.TODO(),r)
 		if err != nil && !k8serrors.IsAlreadyExists(err) {
 			return err
 		}
@@ -186,7 +187,7 @@ func newResourceFromTemplate(template template.Template, component *v1alpha1.Com
 			return nil, err
 		}
 		for _, item := range l.Items {
-			obj, err := k8sutil.RuntimeObjectFromUnstructured(&item)
+			obj, err := kubernetes.RuntimeObjectFromUnstructured(&item)
 			if err != nil {
 				return nil, err
 			}
@@ -195,7 +196,7 @@ func newResourceFromTemplate(template template.Template, component *v1alpha1.Com
 			result = append(result, obj)
 		}
 	} else {
-		obj, err := k8sutil.RuntimeObjectFromUnstructured(r)
+		obj, err := kubernetes.RuntimeObjectFromUnstructured(r)
 		if err != nil {
 			return nil, err
 		}

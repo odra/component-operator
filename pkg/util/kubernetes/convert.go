@@ -18,9 +18,25 @@ limitations under the License.
 package kubernetes
 
 import (
+	"encoding/json"
+	"fmt"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/util/yaml"
 )
+
+var (
+	scheme      = runtime.NewScheme()
+	codecs      = serializer.NewCodecFactory(scheme)
+	decoderFunc = decoder
+)
+
+func decoder(gv schema.GroupVersion, codecs serializer.CodecFactory) runtime.Decoder {
+	codec := codecs.UniversalDecoder(gv)
+	return codec
+}
 
 func PopulateKubernetesObjectFromYaml(data string) (*unstructured.Unstructured, error) {
 	yml := []byte(data)
@@ -34,4 +50,50 @@ func PopulateKubernetesObjectFromYaml(data string) (*unstructured.Unstructured, 
 		return nil, err
 	}
 	return &u, nil
+}
+
+// RuntimeObjectFromUnstructured converts an unstructured to a runtime object
+func RuntimeObjectFromUnstructured(u *unstructured.Unstructured) (runtime.Object, error) {
+	gvk := u.GroupVersionKind()
+	decoder := decoderFunc(gvk.GroupVersion(), codecs)
+
+	b, err := u.MarshalJSON()
+	if err != nil {
+		return nil, fmt.Errorf("error running MarshalJSON on unstructured object: %v", err)
+	}
+	ro, _, err := decoder.Decode(b, &gvk, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode json data with gvk(%v): %v", gvk.String(), err)
+	}
+	return ro, nil
+}
+
+// UnstructuredFromRuntimeObject converts a runtime object to an unstructured
+func UnstructuredFromRuntimeObject(ro runtime.Object) (*unstructured.Unstructured, error) {
+	b, err := json.Marshal(ro)
+	if err != nil {
+		return nil, fmt.Errorf("error running MarshalJSON on runtime object: %v", err)
+	}
+	var u unstructured.Unstructured
+	if err := json.Unmarshal(b, &u.Object); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal json into unstructured object: %v", err)
+	}
+	return &u, nil
+}
+
+// UnstructuredIntoRuntimeObject unmarshalls an unstructured into a given runtime object
+// TODO: https://github.com/operator-framework/operator-sdk/issues/127
+func UnstructuredIntoRuntimeObject(u *unstructured.Unstructured, into runtime.Object) error {
+	gvk := u.GroupVersionKind()
+	decoder := decoderFunc(gvk.GroupVersion(), codecs)
+
+	b, err := u.MarshalJSON()
+	if err != nil {
+		return err
+	}
+	_, _, err = decoder.Decode(b, &gvk, into)
+	if err != nil {
+		return fmt.Errorf("failed to decode json data with gvk(%v): %v", gvk.String(), err)
+	}
+	return nil
 }

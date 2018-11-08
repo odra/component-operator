@@ -110,7 +110,7 @@ func (r *ReconcileComponent) Reconcile(request reconcile.Request) (reconcile.Res
 	operation = "created"
 	for _, a := range r.innerLoopSteps {
 		if a.CanHandle(component) {
-			if err := a.Handle(component); err != nil {
+			if err := a.Handle(component, &r.client); err != nil {
 				return reconcile.Result{}, err
 			}
 		}

@@ -21,14 +21,15 @@ import (
 	appsv1 "github.com/openshift/api/apps/v1"
 	v1 "github.com/openshift/api/apps/v1"
 	appsocpv1 "github.com/openshift/client-go/apps/clientset/versioned/typed/apps/v1"
-	"github.com/operator-framework/operator-sdk/pkg/sdk"
 	log "github.com/sirupsen/logrus"
 	"github.com/snowdrop/component-operator/pkg/apis/component/v1alpha1"
 	"github.com/snowdrop/component-operator/pkg/stub/pipeline"
 	"github.com/snowdrop/component-operator/pkg/util/kubernetes"
+	"golang.org/x/net/context"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // NewLinkStep creates a step that handles the creation of the Service from the catalog
@@ -47,12 +48,12 @@ func (linkStep) CanHandle(component *v1alpha1.Component) bool {
 	return component.Status.Phase == ""
 }
 
-func (linkStep) Handle(component *v1alpha1.Component) error {
+func (linkStep) Handle(component *v1alpha1.Component, client *client.Client) error {
 	target := component.DeepCopy()
-	return createLink(target)
+	return createLink(target, *client)
 }
 
-func createLink(component *v1alpha1.Component) error {
+func createLink(component *v1alpha1.Component, c client.Client) error {
 	// Get Current Namespace
 	namespace, err := kubernetes.GetClientCurrentNamespace("")
 	if err != nil {
@@ -63,7 +64,7 @@ func createLink(component *v1alpha1.Component) error {
 	componentName := component.Spec.Link.TargetComponentName
 
 	// Get DeploymentConfig to inject EnvFrom using Secret and restart it
-	dc, err := GetDeploymentConfig(namespace, componentName)
+	dc, err := GetDeploymentConfig(namespace, componentName, c)
 	if err != nil {
 		return err
 	}
@@ -88,7 +89,7 @@ func createLink(component *v1alpha1.Component) error {
 	//time.Sleep(duration)
 
 	// Update the DeploymentConfig
-	err = sdk.Update(dc)
+	err = c.Update(context.TODO(),dc)
 	if err != nil {
 		log.Fatalf("DeploymentConfig not updated : %s", err.Error())
 	}
@@ -113,7 +114,7 @@ func createLink(component *v1alpha1.Component) error {
 	log.Infof("#### Added %s link's CRD component", componentName)
 	component.Status.Phase = v1alpha1.PhaseServiceCreation
 
-	err = sdk.Update(component)
+	err = c.Update(context.TODO(),component)
 	if err != nil && !k8serrors.IsAlreadyExists(err) {
 		return err
 	}
@@ -147,7 +148,7 @@ func addKeyValueAsEnvVar(key, value string) corev1.EnvVar {
 	}
 }
 
-func GetDeploymentConfig(namespace string, name string) (*v1.DeploymentConfig, error) {
+func GetDeploymentConfig(namespace string, name string, c client.Client) (*v1.DeploymentConfig, error) {
 	dc := v1.DeploymentConfig{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "apps.openshift.io/v1",
@@ -158,7 +159,7 @@ func GetDeploymentConfig(namespace string, name string) (*v1.DeploymentConfig, e
 			Name:      name,
 		},
 	}
-	if err := sdk.Get(&dc); err != nil {
+	if err := c.Update(context.TODO(),&dc); err != nil {
 		return nil, err
 	}
 	return &dc, nil

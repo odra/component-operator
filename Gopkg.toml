@@ -53,6 +53,10 @@ required = [
   name = "github.com/kubernetes-incubator/service-catalog"
   version = "v0.1.37"
 
+[[override]]
+  name = "github.com/coreos/prometheus-operator"
+  version = "0.24.0"
+
 [prune]
   go-tests = true
   non-go = true
