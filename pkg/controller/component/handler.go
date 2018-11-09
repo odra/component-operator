@@ -20,10 +20,10 @@ package component
 import (
 	"context"
 	"github.com/snowdrop/component-operator/pkg/apis/component/v1alpha1"
-	"github.com/snowdrop/component-operator/pkg/stub/pipeline"
-	"github.com/snowdrop/component-operator/pkg/stub/pipeline/innerloop"
-	"github.com/snowdrop/component-operator/pkg/stub/pipeline/link"
-	"github.com/snowdrop/component-operator/pkg/stub/pipeline/servicecatalog"
+	"github.com/snowdrop/component-operator/pkg/pipeline"
+	"github.com/snowdrop/component-operator/pkg/pipeline/innerloop"
+	"github.com/snowdrop/component-operator/pkg/pipeline/link"
+	"github.com/snowdrop/component-operator/pkg/pipeline/servicecatalog"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/source"
@@ -111,6 +111,7 @@ func (r *ReconcileComponent) Reconcile(request reconcile.Request) (reconcile.Res
 	for _, a := range r.innerLoopSteps {
 		if a.CanHandle(component) {
 			if err := a.Handle(component, &r.client); err != nil {
+				log.Error(err)
 				return reconcile.Result{}, err
 			}
 		}

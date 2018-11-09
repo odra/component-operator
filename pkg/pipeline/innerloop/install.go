@@ -23,7 +23,7 @@ import (
 	"golang.org/x/net/context"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/snowdrop/component-operator/pkg/stub/pipeline"
+	"github.com/snowdrop/component-operator/pkg/pipeline"
 	"github.com/snowdrop/component-operator/pkg/util/kubernetes"
 	util "github.com/snowdrop/component-operator/pkg/util/template"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"

@@ -21,10 +21,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/util/yaml"
+	cgoscheme "k8s.io/client-go/kubernetes/scheme"
+
+	deploymentconfig "github.com/openshift/api/apps/v1"
+	image "github.com/openshift/api/image/v1"
+	route "github.com/openshift/api/route/v1"
 )
 
 var (
@@ -33,9 +39,38 @@ var (
 	decoderFunc = decoder
 )
 
+func init() {
+	// Add the standard kubernetes [GVK:Types] type registry
+	// e.g (v1,Pods):&v1.Pod{}
+	metav1.AddToGroupVersion(scheme, schema.GroupVersion{Version: "v1"})
+	cgoscheme.AddToScheme(scheme)
+
+	//add openshift types
+	deploymentconfig.AddToScheme(scheme)
+	image.AddToScheme(scheme)
+	route.AddToScheme(scheme)
+}
+
+// UtilDecoderFunc retrieve the correct decoder from a GroupVersion
+// and the schemes codec factory.
+type UtilDecoderFunc func(schema.GroupVersion, serializer.CodecFactory) runtime.Decoder
+
+// SetDecoderFunc sets a non default decoder function
+// This is used as a work around to add support for unstructured objects
+func SetDecoderFunc(u UtilDecoderFunc) {
+	decoderFunc = u
+}
+
 func decoder(gv schema.GroupVersion, codecs serializer.CodecFactory) runtime.Decoder {
 	codec := codecs.UniversalDecoder(gv)
 	return codec
+}
+
+type addToSchemeFunc func(*runtime.Scheme) error
+
+// AddToSDKScheme allows CRDs to register their types with the sdk scheme
+func AddToSDKScheme(addToScheme addToSchemeFunc) {
+	addToScheme(scheme)
 }
 
 func PopulateKubernetesObjectFromYaml(data string) (*unstructured.Unstructured, error) {

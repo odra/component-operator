@@ -23,7 +23,7 @@ import (
 	appsocpv1 "github.com/openshift/client-go/apps/clientset/versioned/typed/apps/v1"
 	log "github.com/sirupsen/logrus"
 	"github.com/snowdrop/component-operator/pkg/apis/component/v1alpha1"
-	"github.com/snowdrop/component-operator/pkg/stub/pipeline"
+	"github.com/snowdrop/component-operator/pkg/pipeline"
 	"github.com/snowdrop/component-operator/pkg/util/kubernetes"
 	"golang.org/x/net/context"
 	corev1 "k8s.io/api/core/v1"
