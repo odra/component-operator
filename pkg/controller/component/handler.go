@@ -94,25 +94,64 @@ func (r *ReconcileComponent) Reconcile(request reconcile.Request) (reconcile.Res
 	err := r.client.Get(context.TODO(), request.NamespacedName, component)
 	if err != nil {
 		if errors.IsNotFound(err) {
+			// Component has been deleted
 			operation = "deleted"
-			// Request object not found, could have been deleted after reconcile request.
-			// Owned objects are automatically garbage collected. For additional cleanup logic use finalizers.
-			// Return and don't requeue
+
+			// Check if the component is a Service and then delete the ServiceInstance, ServiceBinding
+			if component.Spec.Services != nil {
+				removeServiceInstanceStep := servicecatalog.RemoveServiceInstanceStep()
+					log.Infof("### Invoking'service catalog', action '%s' on %s", "delete", component.Name)
+					if err := removeServiceInstanceStep.Handle(component, &r.client); err != nil {
+						log.Error(err)
+					}
+			}
+
 			log.Printf("Reconciling AppService %s/%s - operation %s\n", request.Namespace, request.Name, operation)
 			return reconcile.Result{}, nil
 		}
 		// Error reading the object - requeue the request.
 		log.Printf("Reconciling AppService %s/%s - operation %s\n", request.Namespace, request.Name, operation)
-
 		return reconcile.Result{}, err
 	}
-	// appService instance created
+
+	// Component Custom Resource instance has been created
 	operation = "created"
-	for _, a := range r.innerLoopSteps {
-		if a.CanHandle(component) {
-			if err := a.Handle(component, &r.client); err != nil {
-				log.Error(err)
-				return reconcile.Result{}, err
+
+	// Check if Spec is not null and if the DeploymentMode strategy is equal to innerloop
+	if component.Spec.Runtime != "" && component.Spec.DeploymentMode == "innerloop" {
+		for _, a := range r.innerLoopSteps {
+			if a.CanHandle(component) {
+				log.Infof("### Invoking pipeline 'innerloop', action '%s' on %s", a.Name(), component.Name)
+				if err := a.Handle(component, &r.client); err != nil {
+					log.Error(err)
+					return reconcile.Result{}, err
+				}
+			}
+		}
+	}
+
+	// Check if the component is a Service to be installed from the catalog
+	if component.Spec.Services != nil {
+		for _, a := range r.serviceCatalogSteps {
+			if a.CanHandle(component) {
+				log.Infof("### Invoking'service catalog', action '%s' on %s", a.Name(), o.Name)
+				if err := a.Handle(component, &r.client); err != nil {
+					log.Error(err)
+					return reconcile.Result{}, err
+				}
+			}
+		}
+	}
+
+	// Check if the component is a Link
+	if component.Spec.Link != nil {
+		for _, a := range r.linkSteps {
+			if a.CanHandle(component) {
+				log.Infof("### Invoking'link', action '%s' on %s", a.Name(), component.Name)
+				if err := a.Handle(component, &r.client); err != nil {
+					log.Error(err)
+					return reconcile.Result{}, err
+				}
 			}
 		}
 	}
