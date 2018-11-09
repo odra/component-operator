@@ -134,7 +134,7 @@ func (r *ReconcileComponent) Reconcile(request reconcile.Request) (reconcile.Res
 	if component.Spec.Services != nil {
 		for _, a := range r.serviceCatalogSteps {
 			if a.CanHandle(component) {
-				log.Infof("### Invoking'service catalog', action '%s' on %s", a.Name(), o.Name)
+				log.Infof("### Invoking'service catalog', action '%s' on %s", a.Name(), component.Name)
 				if err := a.Handle(component, &r.client); err != nil {
 					log.Error(err)
 					return reconcile.Result{}, err
