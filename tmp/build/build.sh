@@ -11,7 +11,7 @@ fi
 
 BIN_DIR="$(pwd)/tmp/_output/bin"
 mkdir -p ${BIN_DIR}
-PROJECT_NAME="component-operator"
+PROJECT_NAME="manager"
 REPO_PATH="github.com/snowdrop/component-operator"
 BUILD_PATH="${REPO_PATH}/cmd/${PROJECT_NAME}"
 #TEST_PATH="${REPO_PATH}/${TEST_LOCATION}"
