@@ -18,12 +18,13 @@ limitations under the License.
 package servicecatalog
 
 import (
+	"context"
 	servicecatalog "github.com/kubernetes-incubator/service-catalog/pkg/apis/servicecatalog/v1beta1"
-	"github.com/operator-framework/operator-sdk/pkg/sdk"
 	log "github.com/sirupsen/logrus"
 	"github.com/snowdrop/component-operator/pkg/apis/component/v1alpha1"
 	"github.com/snowdrop/component-operator/pkg/stub/pipeline"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // RemoveServiceInstanceStep creates a step that handles the creation of the Service from the catalog
@@ -42,15 +43,12 @@ func (removeServiceInstanceStep) CanHandle(component *v1alpha1.Component) bool {
 	return component.Status.Phase == "CreatingService"
 }
 
-func (removeServiceInstanceStep) Handle(component *v1alpha1.Component, deleted bool) error {
+func (removeServiceInstanceStep) Handle(component *v1alpha1.Component, client *client.Client) error {
 	target := component.DeepCopy()
-	if deleted {
-		return deleteService(target)
-	}
-	return nil
+	return deleteService(target, *client)
 }
 
-func deleteService(component *v1alpha1.Component) error {
+func deleteService(component *v1alpha1.Component, c client.Client) error {
 	selector := getComponentSelector()
 	for _, s := range component.Spec.Services {
 		// Let's retrieve the ServiceBindings to delete them first
@@ -61,7 +59,7 @@ func deleteService(component *v1alpha1.Component) error {
 		// Delete ServiceBinding(s) linked to the ServiceInstance
 		for _, sb := range list.Items {
 			if sb.Name == s.Name {
-				err := sdk.Delete(&sb)
+				err := c.Delete(context.TODO(),&sb)
 				if err != nil {
 					return err
 				}
@@ -75,14 +73,17 @@ func deleteService(component *v1alpha1.Component) error {
 			Kind:       "ServiceInstance",
 			APIVersion: "servicecatalog.k8s.io/v1beta1",
 		}
-		err = sdk.List(component.ObjectMeta.Namespace, list)
+		listOps := &client.ListOptions{
+			Namespace: component.ObjectMeta.Namespace,
+		}
+		err = c.List(context.TODO(),listOps,list)
 		if err != nil {
 			return err
 		}
 
 		// Delete ServiceInstance(s)
 		for _, si := range list.Items {
-			err := sdk.Delete(&si)
+			err := c.Delete(context.TODO(),&si)
 			if err != nil {
 				return err
 			}
