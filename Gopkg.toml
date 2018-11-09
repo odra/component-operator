@@ -30,7 +30,8 @@ required = [
 [[override]]
   name = "k8s.io/apimachinery"
   # revision for tag "kubernetes-1.11.2"
-  revision = "103fd098999dc9c0c88536f5c9ad2e5da39373ae"
+  # revision = "103fd098999dc9c0c88536f5c9ad2e5da39373ae"
+  branch = "release-1.11"
 
 [[override]]
   name = "k8s.io/client-go"
@@ -51,7 +52,7 @@ required = [
 
 [[constraint]]
   name = "github.com/kubernetes-incubator/service-catalog"
-  version = "v0.1.37"
+  version = "v0.1.30"
 
 [[override]]
   name = "github.com/coreos/prometheus-operator"
