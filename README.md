@@ -112,6 +112,7 @@ Instructions followed to create the Component's CRD, operator using the `operato
 - Execute this command within the `$GOPATH/github.com/$ORG/` folder is a terminal
   ```bash
   operator-sdk new component-operator --api-version=component.k8s.io/v1alpha1 --kind=Component --skip-git-init
+  operator-sdk add api --api-version=component.k8s.io/v1alpha1 --kind=Component 
   ```
   using the following parameters 
 
