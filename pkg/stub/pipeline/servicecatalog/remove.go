@@ -49,10 +49,9 @@ func (removeServiceInstanceStep) Handle(component *v1alpha1.Component, client *c
 }
 
 func deleteService(component *v1alpha1.Component, c client.Client) error {
-	selector := getComponentSelector()
 	for _, s := range component.Spec.Services {
 		// Let's retrieve the ServiceBindings to delete them first
-		list, err := listServiceBindings(component, selector)
+		list, err := listServiceBindings(component, c)
 		if err != nil {
 			return err
 		}

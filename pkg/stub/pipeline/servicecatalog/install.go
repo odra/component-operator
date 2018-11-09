@@ -18,10 +18,9 @@ limitations under the License.
 package servicecatalog
 
 import (
+	"context"
 	"encoding/json"
 	servicecatalog "github.com/kubernetes-incubator/service-catalog/pkg/apis/servicecatalog/v1beta1"
-	"github.com/operator-framework/operator-sdk/pkg/sdk"
-	"github.com/operator-framework/operator-sdk/pkg/k8sutil"
 	log "github.com/sirupsen/logrus"
 	"github.com/snowdrop/component-operator/pkg/apis/component/v1alpha1"
 	"github.com/snowdrop/component-operator/pkg/stub/pipeline"
@@ -29,6 +28,8 @@ import (
 	util "github.com/snowdrop/component-operator/pkg/util/template"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"strings"
 
 	// metav1unstructured "k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -52,12 +53,12 @@ func (newServiceInstanceStep) CanHandle(component *v1alpha1.Component) bool {
 	return component.Status.Phase == ""
 }
 
-func (newServiceInstanceStep) Handle(component *v1alpha1.Component, deleted bool) error {
+func (newServiceInstanceStep) Handle(component *v1alpha1.Component, client *client.Client) error {
 	target := component.DeepCopy()
-	return createService(target)
+	return createService(target, *client)
 }
 
-func createService(component *v1alpha1.Component) error {
+func createService(component *v1alpha1.Component, c client.Client) error {
 	// Get Current Namespace
 	namespace, err := kubernetes.GetClientCurrentNamespace("")
 	if err != nil {
@@ -74,7 +75,7 @@ func createService(component *v1alpha1.Component) error {
 		// Create the ServiceInstance and ServiceBinding using the template
 		for _, tmpl := range util.Templates {
 			if strings.HasPrefix(tmpl.Name(), "servicecatalog") {
-				err := createResource(tmpl, component)
+				err := createResource(tmpl, component, c)
 				if err != nil {
 					return err
 				}
@@ -86,7 +87,7 @@ func createService(component *v1alpha1.Component) error {
 	log.Infof("#### Created %s CRD's service component", component.Name)
 	component.Status.Phase = v1alpha1.PhaseServiceCreation
 
-	err = sdk.Update(component)
+	err = c.Update(context.TODO(),component)
 	if err != nil && !k8serrors.IsAlreadyExists(err) {
 		return err
 	}
@@ -115,14 +116,14 @@ func ParametersAsMap(parameters []v1alpha1.Parameter) map[string]string {
 	return result
 }
 
-func createResource(tmpl template.Template, component *v1alpha1.Component) error {
+func createResource(tmpl template.Template, component *v1alpha1.Component, c client.Client) error {
 	res, err := newResourceFromTemplate(tmpl, component)
 	if err != nil {
 		return err
 	}
 
 	for _, r := range res {
-		err = sdk.Create(r)
+		err = c.Create(context.TODO(),r)
 		if err != nil && !k8serrors.IsAlreadyExists(err) {
 			return err
 		}
@@ -146,7 +147,7 @@ func newResourceFromTemplate(template template.Template, component *v1alpha1.Com
 			return nil, err
 		}
 		for _, item := range l.Items {
-			obj, err := k8sutil.RuntimeObjectFromUnstructured(&item)
+			obj, err := kubernetes.RuntimeObjectFromUnstructured(&item)
 			if err != nil {
 				return nil, err
 			}
@@ -159,7 +160,7 @@ func newResourceFromTemplate(template template.Template, component *v1alpha1.Com
 			result = append(result, obj)
 		}
 	} else {
-		obj, err := k8sutil.RuntimeObjectFromUnstructured(r)
+		obj, err := kubernetes.RuntimeObjectFromUnstructured(r)
 		if err != nil {
 			return nil, err
 		}
@@ -175,17 +176,25 @@ func newResourceFromTemplate(template template.Template, component *v1alpha1.Com
 	return result, nil
 }
 
-func listServiceBindings(component *v1alpha1.Component, listoptions metav1.ListOptions) (*servicecatalog.ServiceInstanceList, error) {
+func listServiceBindings(component *v1alpha1.Component, c client.Client) (*servicecatalog.ServiceInstanceList, error) {
 	listServiceInstance := new(servicecatalog.ServiceInstanceList)
 	listServiceInstance.TypeMeta = metav1.TypeMeta{
 		Kind:       "ServiceInstance",
 		APIVersion: "servicecatalog.k8s.io/v1beta1",
 	}
-	err := sdk.List(component.ObjectMeta.Namespace, listServiceInstance, sdk.WithListOptions(&listoptions))
+	listOps := client.ListOptions{
+		Namespace: component.ObjectMeta.Namespace,
+		LabelSelector: getLabelsSelector(component.ObjectMeta.Labels),
+	}
+	err := c.List(context.TODO(), &listOps, listServiceInstance)
 	if err != nil {
 		return nil, err
 	}
 	return listServiceInstance, nil
+}
+
+func getLabelsSelector(mapLabels map[string]string) labels.Selector {
+	return labels.SelectorFromSet(mapLabels)
 }
 
 func getComponentSelector() metav1.ListOptions {
