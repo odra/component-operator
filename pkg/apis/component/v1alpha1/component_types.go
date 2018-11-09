@@ -4,24 +4,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
+// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
-type ComponentList struct {
-	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata"`
-	Items           []Component `json:"items"`
-}
-
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-
-// A component represents
-type Component struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata"`
-	Spec              ComponentSpec   `json:"spec"`
-	Status            ComponentStatus `json:"status,omitempty"`
-}
-
+// ComponentSpec defines the desired state of Component
 type ComponentSpec struct {
 	// The name represents a human readable string describing from a business perspective what this component is related to
 	// Example : payment-frontend, retail-backend
@@ -72,6 +58,7 @@ type ComponentSpec struct {
 	Link *Link `json:"link,omitempty"`
 }
 
+// ComponentStatus defines the observed state of Component
 type ComponentStatus struct {
 	Phase Phase `json:"phase,omitempty"`
 }
@@ -144,6 +131,27 @@ const (
 	PhaseError Phase = "Error"
 )
 
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// Component is the Schema for the components API
+// +k8s:openapi-gen=true
+type Component struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Spec   ComponentSpec   `json:"spec,omitempty"`
+	Status ComponentStatus `json:"status,omitempty"`
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// ComponentList contains a list of Component
+type ComponentList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []Component `json:"items"`
+}
+
 func init() {
-   SchemeBuilder.Register(&Component{},&ComponentList{})
+	SchemeBuilder.Register(&Component{}, &ComponentList{})
 }
